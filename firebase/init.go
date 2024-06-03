@@ -11,7 +11,7 @@ import (
 var App *firebase.App
 
 func Initialize() {
-	opt := option.WithCredentialsFile("C:\\Users\\2220414\\Desktop\\システム開発\\care-connect-eba8d-firebase-adminsdk-cz4pl-eb03b9ff28.json")
+	opt := option.WithCredentialsFile("path/to/serviceAccountKey.json")
 	var err error
 	App, err = firebase.NewApp(context.Background(), nil, opt)
 	if err != nil {
