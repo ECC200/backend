@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// 新しくuserを作成する処理
 func TestCreateUser(t *testing.T) {
 	firebase.Initialize()
 
@@ -32,6 +33,7 @@ func TestCreateUser(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "User created successfully")
 }
 
+// userを参照する処理
 func TestGetUser(t *testing.T) {
 	firebase.Initialize()
 

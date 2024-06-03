@@ -19,6 +19,7 @@ func CreateUser(c *gin.Context) {
 		return
 	}
 
+	// 修正必要
 	user.BirthDate = time.Now() // 簡単にするために現在時刻をセット
 	user.UserID = ""            // Firestoreが自動生成するため空にしておく
 
