@@ -15,8 +15,8 @@ func main() {
 	r.POST("/users", handlers.CreateUser)
 	r.GET("/users/:id", handlers.GetUser)
 
-	r.POST("/medical_memos", handlers.CreateMedicalMemo)
-	r.GET("/medical_memos/:id", handlers.GetMedicalMemo)
+	// r.POST("/medical_memos", handlers.CreateMedicalMemo)
+	// r.GET("/medical_memos/:id", handlers.GetMedicalMemo)
 
 	r.Run()
 }
