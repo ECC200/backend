@@ -10,7 +10,7 @@ import (
 )
 
 func CreateMedicalMemo(c *gin.Context) {
-	var memo models.MedicalMemo
+	var memo models.Health_care_staff
 	if err := c.ShouldBindJSON(&memo); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input"})
 		return
@@ -49,7 +49,7 @@ func GetMedicalMemo(c *gin.Context) {
 		return
 	}
 
-	var memo models.MedicalMemo
+	var memo models.Health_care_staff
 	doc.DataTo(&memo)
 	c.JSON(http.StatusOK, memo)
 }
