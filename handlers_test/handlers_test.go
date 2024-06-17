@@ -16,15 +16,17 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// 新しくuserを作成する処理
 func TestCreateUser(t *testing.T) {
 	firebase.Initialize()
+	if firebase.Client == nil {
+		t.Fatalf("Failed to initialize Firestore")
+	}
 
 	router := gin.Default()
 	router.POST("/users", handlers.CreateUser)
 
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest("POST", "/users", strings.NewReader(`{"user_name":"kotarou minami","mailaddress":"john@example.com","password":"password123","emergency_contact":"123456789","work_contact":"987654321","blood_type":"O+"}`))
+	req, _ := http.NewRequest("POST", "/users", strings.NewReader(`{"user_name":"kotarou minami","mailaddress":"john@example.com","password":"password123","work_contact":"987654321","blood_type":"O+","emergency_contacts":[{"name":"Mother","phone":"123456789"}]}`))
 	req.Header.Set("Content-Type", "application/json")
 
 	router.ServeHTTP(w, req)
@@ -33,27 +35,36 @@ func TestCreateUser(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "User created successfully")
 }
 
-// userを参照する処理
 func TestGetUser(t *testing.T) {
 	firebase.Initialize()
-
-	// 事前にユーザーを作成しておく
-	ctx := context.Background()
-	client, _ := firebase.App.Firestore(ctx)
-	user := models.User{
-		UserName:         "John Doe",
-		MailAddress:      "john@example.com",
-		Password:         "password123",
-		BirthDate:        time.Now(),
-		EmergencyContact: "123456789",
-		WorkContact:      "987654321",
-		BloodType:        "O+",
+	if firebase.Client == nil {
+		t.Fatalf("Failed to initialize Firestore")
 	}
-	docRef, _, _ := client.Collection("users").Add(ctx, user)
+
+	ctx := context.Background()
+	client := firebase.Client
+	user := models.User{
+		UserName:    "John Doe",
+		MailAddress: "john@example.com",
+		Password:    "password123",
+		BirthDate:   time.Now(),
+		EmergencyContacts: []models.EmergencyContact{
+			{Name: "Mother", Phone: "090-1234-5678"},
+			{Name: "Father", Phone: "090-8765-4321"},
+		},
+		WorkContact: "987654321",
+		BloodType:   "O+",
+	}
+	docRef, _, err := client.Collection("users").Add(ctx, user)
+	if err != nil {
+		t.Fatalf("Failed to add user: %v", err)
+	}
 	user.UserID = docRef.ID
 
-	// FirestoreにUserIDを更新
-	_, _ = docRef.Set(ctx, map[string]interface{}{"user_id": user.UserID}, firestore.MergeAll)
+	_, err = docRef.Set(ctx, map[string]interface{}{"user_id": user.UserID}, firestore.MergeAll)
+	if err != nil {
+		t.Fatalf("Failed to update user ID: %v", err)
+	}
 
 	router := gin.Default()
 	router.GET("/users/:id", handlers.GetUser)
