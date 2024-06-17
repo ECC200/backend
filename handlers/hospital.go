@@ -10,19 +10,17 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// hospitalを作成
+// CreateHospital - hospitalを作成
 func CreateHospital(c *gin.Context) {
-	var hospital models.Hosoital
+	var hospital models.Hospital
 	// リクエストのJSONをhospitalモデルにバインド
 	if err := c.ShouldBindJSON(&hospital); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input"})
 		return
 	}
 
-	// 修正必要
-	hospital.HospitalID = "" // Firestoreが自動生成するため空にしておく
-	hospital.HospitalName = ""
-	hospital.Password = ""
+	// 修正必要: Firestoreが自動生成するため空にしておく
+	hospital.HospitalID = ""
 
 	ctx := context.Background()
 	// Firestoreクライアントを初期化
@@ -36,7 +34,7 @@ func CreateHospital(c *gin.Context) {
 	// Firestoreにユーザーを追加
 	docRef, _, err := client.Collection("hospitals").Add(ctx, hospital)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create staff"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create hospital"})
 		return
 	}
 
@@ -49,11 +47,11 @@ func CreateHospital(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "hospital created successfully", "hospital_id": hospital.HospitalID})
+	c.JSON(http.StatusOK, gin.H{"message": "Hospital created successfully", "hospital_id": hospital.HospitalID})
 }
 
-// hospital情報取得
-func Gethospital(c *gin.Context) {
+// GetHospital - hospital情報取得
+func GetHospital(c *gin.Context) {
 	hospitalID := c.Param("id")
 	ctx := context.Background()
 	// Firestoreクライアントを初期化
@@ -67,11 +65,11 @@ func Gethospital(c *gin.Context) {
 	// 指定されたhospitalIDのドキュメントを取得
 	doc, err := client.Collection("hospitals").Doc(hospitalID).Get(ctx)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get staff data"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get hospital data"})
 		return
 	}
 
-	var hospital models.Hosoital
+	var hospital models.Hospital
 	doc.DataTo(&hospital) // ドキュメントデータをhospitalモデルにマッピング
 	hospital.HospitalID = doc.Ref.ID
 
