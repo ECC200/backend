@@ -3,7 +3,6 @@ package handlers
 import (
 	"backend/firebase"
 	"backend/models"
-	"context"
 	"net/http"
 
 	"cloud.google.com/go/firestore"
@@ -11,22 +10,21 @@ import (
 )
 
 // CreateHospital - hospitalを作成
-func CreateHospital(c *gin.Context) {
+func CreateHospital(ctx *gin.Context) {
 	var hospital models.Hospital
 	// リクエストのJSONをhospitalモデルにバインド
-	if err := c.ShouldBindJSON(&hospital); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input"})
+	if err := ctx.ShouldBindJSON(&hospital); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input"})
 		return
 	}
 
 	// 修正必要: Firestoreが自動生成するため空にしておく
 	hospital.HospitalID = ""
 
-	ctx := context.Background()
 	// Firestoreクライアントを初期化
 	client, err := firebase.App.Firestore(ctx)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to initialize Firestore"})
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to initialize Firestore"})
 		return
 	}
 	defer client.Close()
@@ -34,7 +32,7 @@ func CreateHospital(c *gin.Context) {
 	// Firestoreにユーザーを追加
 	docRef, _, err := client.Collection("hospitals").Add(ctx, hospital)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create hospital"})
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create hospital"})
 		return
 	}
 
@@ -43,21 +41,20 @@ func CreateHospital(c *gin.Context) {
 	// FirestoreにhospitalIDを更新
 	_, err = docRef.Set(ctx, map[string]interface{}{"hospital_id": hospital.HospitalID}, firestore.MergeAll)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update hospital_id"})
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update hospital_id"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Hospital created successfully", "hospital_id": hospital.HospitalID})
+	ctx.JSON(http.StatusOK, gin.H{"message": "Hospital created successfully", "hospital_id": hospital.HospitalID})
 }
 
 // GetHospital - hospital情報取得
-func GetHospital(c *gin.Context) {
-	hospitalID := c.Param("id")
-	ctx := context.Background()
+func GetHospital(ctx *gin.Context) {
+	hospitalID := ctx.Param("id")
 	// Firestoreクライアントを初期化
 	client, err := firebase.App.Firestore(ctx)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to initialize Firestore"})
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to initialize Firestore"})
 		return
 	}
 	defer client.Close()
@@ -65,7 +62,7 @@ func GetHospital(c *gin.Context) {
 	// 指定されたhospitalIDのドキュメントを取得
 	doc, err := client.Collection("hospitals").Doc(hospitalID).Get(ctx)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get hospital data"})
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get hospital data"})
 		return
 	}
 
@@ -73,5 +70,5 @@ func GetHospital(c *gin.Context) {
 	doc.DataTo(&hospital) // ドキュメントデータをhospitalモデルにマッピング
 	hospital.HospitalID = doc.Ref.ID
 
-	c.JSON(http.StatusOK, hospital)
+	ctx.JSON(http.StatusOK, hospital)
 }
