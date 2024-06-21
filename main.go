@@ -29,5 +29,8 @@ func main() {
 	// 認証ルートを追加
 	r.POST("/login", handlers.LoginHandler)
 
+	// 障害者番号をチェックするルートを追加
+	r.POST("/checkDisabilityId", handlers.CheckDisabilityIdHandler)
+
 	r.Run()
 }
