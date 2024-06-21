@@ -3,7 +3,6 @@ package handlers
 import (
 	"backend/firebase"
 	"backend/models"
-	"context"
 	"net/http"
 
 	"log"
@@ -22,21 +21,20 @@ type LoginResponse struct {
 	Message string `json:"message,omitempty"`
 }
 
-func LoginHandler(c *gin.Context) {
+func LoginHandler(ctx *gin.Context) {
 	var req LoginRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := ctx.ShouldBindJSON(&req); err != nil {
 		log.Printf("Invalid request: %v\n", err)
-		c.JSON(http.StatusBadRequest, LoginResponse{Success: false, Message: "Invalid request"})
+		ctx.JSON(http.StatusBadRequest, LoginResponse{Success: false, Message: "Invalid request"})
 		return
 	}
 
 	log.Printf("Login attempt: staffId=%s\n", req.StaffID)
 
-	ctx := context.Background()
 	client, err := firebase.App.Firestore(ctx)
 	if err != nil {
 		log.Printf("Firestore client error: %v\n", err)
-		c.JSON(http.StatusInternalServerError, LoginResponse{Success: false, Message: "Firestore client error"})
+		ctx.JSON(http.StatusInternalServerError, LoginResponse{Success: false, Message: "Firestore client error"})
 		return
 	}
 	defer client.Close()
@@ -46,6 +44,7 @@ func LoginHandler(c *gin.Context) {
 	defer iter.Stop()
 
 	var staff models.Staff
+
 	for {
 		doc, err := iter.Next()
 		if err == iterator.Done {
@@ -53,12 +52,12 @@ func LoginHandler(c *gin.Context) {
 		}
 		if err != nil {
 			log.Printf("Error fetching user: %v\n", err)
-			c.JSON(http.StatusInternalServerError, LoginResponse{Success: false, Message: "Error fetching user"})
+			ctx.JSON(http.StatusInternalServerError, LoginResponse{Success: false, Message: "Error fetching user"})
 			return
 		}
 		if err := doc.DataTo(&staff); err != nil {
 			log.Printf("Error decoding user: %v\n", err)
-			c.JSON(http.StatusInternalServerError, LoginResponse{Success: false, Message: "Error decoding user"})
+			ctx.JSON(http.StatusInternalServerError, LoginResponse{Success: false, Message: "Error decoding user"})
 			return
 		}
 		log.Printf("User found: %+v\n", staff)
@@ -67,10 +66,10 @@ func LoginHandler(c *gin.Context) {
 
 	if staff.StaffID == "" || staff.Password != req.Password {
 		log.Printf("Invalid staff ID or password\n")
-		c.JSON(http.StatusUnauthorized, LoginResponse{Success: false, Message: "Invalid staff ID or password"})
+		ctx.JSON(http.StatusUnauthorized, LoginResponse{Success: false, Message: "Invalid staff ID or password"})
 		return
 	}
 
 	log.Printf("Login successful: staffId=%s\n", req.StaffID)
-	c.JSON(http.StatusOK, LoginResponse{Success: true})
+	ctx.JSON(http.StatusOK, LoginResponse{Success: true})
 }
