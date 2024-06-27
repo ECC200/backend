@@ -1,15 +1,29 @@
 package handlers
 
 import (
-	"backend/firebase"
-	"backend/models"
 	"context"
+	"math/rand"
 	"net/http"
+	"time"
 
 	"cloud.google.com/go/firestore"
 	"github.com/gin-gonic/gin"
 	"google.golang.org/api/iterator"
+
+	"backend/firebase"
+	"backend/models"
 )
+
+// 10桁の英数字を生成する関数
+func generateRandomID() string {
+	const charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	rand.Seed(time.Now().UnixNano())
+	id := make([]byte, 10)
+	for i := range id {
+		id[i] = charset[rand.Intn(len(charset))]
+	}
+	return string(id)
+}
 
 // Userを作成
 func CreateUser(c *gin.Context) {
@@ -20,9 +34,11 @@ func CreateUser(c *gin.Context) {
 		return
 	}
 
+	// 10桁の英数字を生成してユーザーIDとして設定
+	user.UserID = generateRandomID()
+
 	// 修正必要
 	user.BirthDate = "" // 簡単にするために現在時刻をセット
-	user.UserID = ""    // Firestoreが自動生成するため空にしておく
 
 	ctx := context.Background()
 	// Firestoreクライアントを初期化
@@ -33,21 +49,16 @@ func CreateUser(c *gin.Context) {
 	}
 	defer client.Close()
 
-	// Firestoreにユーザーを追加
-	docRef, _, err := client.Collection("users").Add(ctx, user)
+	// Firestoreにユーザーを追加する際にドキュメントIDを指定
+	docRef := client.Collection("users").Doc(user.UserID)
+	_, err = docRef.Set(ctx, user)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user"})
 		return
 	}
 
-	user.UserID = docRef.ID // ドキュメントIDをUserIDとしてセット
-
-	// FirestoreにUserIDを更新
-	_, err = docRef.Set(ctx, map[string]interface{}{"user_id": user.UserID}, firestore.MergeAll)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user_id"})
-		return
-	}
+	// ドキュメントIDをUserIDとしてセット
+	user.UserID = docRef.ID
 
 	c.JSON(http.StatusOK, gin.H{"message": "User created successfully", "user_id": user.UserID})
 }
@@ -124,4 +135,37 @@ func CheckDisabilityIdHandler(c *gin.Context) {
 
 	// ユーザーが見つかった場合
 	c.JSON(http.StatusOK, gin.H{"success": true})
+}
+
+// 履歴を追加するエンドポイントを作成
+func AddHistory(c *gin.Context) {
+	id := c.Param("id")
+	var newHistory struct {
+		Date    string `json:"date"`
+		History string `json:"history"`
+	}
+	if err := c.BindJSON(&newHistory); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
+		return
+	}
+
+	ctx := context.Background()
+	client, err := firebase.App.Firestore(ctx)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to initialize Firestore"})
+		return
+	}
+	defer client.Close()
+
+	docRef := client.Collection("users").Doc(id)
+	_, err = docRef.Update(ctx, []firestore.Update{
+		{Path: "date", Value: firestore.ArrayUnion(newHistory.Date)},
+		{Path: "history", Value: firestore.ArrayUnion(newHistory.History)},
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user history"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "History added successfully"})
 }
