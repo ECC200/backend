@@ -7,7 +7,7 @@ type EmergencyContact struct {
 
 type History struct {
 	Memo string `json:"memo" firestore:"memo"`
-	Data string `json:"data" firestore:"data"`
+	Date string `json:"date" firestore:"date"`
 }
 
 type User struct {
