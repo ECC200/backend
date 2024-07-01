@@ -137,14 +137,11 @@ func CheckDisabilityIdHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 
-// 履歴を追加するエンドポイントを作成
-func AddHistory(c *gin.Context) {
-	id := c.Param("id")
-	var newHistory struct {
-		Date    string `json:"date"`
-		History string `json:"history"`
-	}
-	if err := c.BindJSON(&newHistory); err != nil {
+// 履歴を更新
+func UpdateHistory(c *gin.Context) {
+	userID := c.Param("id")
+	var updatedHistories []models.History
+	if err := c.BindJSON(&updatedHistories); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
 		return
 	}
@@ -157,15 +154,47 @@ func AddHistory(c *gin.Context) {
 	}
 	defer client.Close()
 
-	docRef := client.Collection("users").Doc(id)
+	docRef := client.Collection("users").Doc(userID)
 	_, err = docRef.Update(ctx, []firestore.Update{
-		{Path: "date", Value: firestore.ArrayUnion(newHistory.Date)},
-		{Path: "history", Value: firestore.ArrayUnion(newHistory.History)},
+		{Path: "historys", Value: updatedHistories},
 	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user history"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "History added successfully"})
+	c.JSON(http.StatusOK, gin.H{"success": true})
+}
+
+// User詳細情報更新
+func UpdateUserDetails(c *gin.Context) {
+	userID := c.Param("id")
+	var updates struct {
+		MedicationStatus string `json:"medication_status"`
+		DoctorComment    string `json:"doctor_comment"`
+	}
+	if err := c.BindJSON(&updates); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
+		return
+	}
+
+	ctx := context.Background()
+	client, err := firebase.App.Firestore(ctx)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to initialize Firestore"})
+		return
+	}
+	defer client.Close()
+
+	docRef := client.Collection("users").Doc(userID)
+	_, err = docRef.Update(ctx, []firestore.Update{
+		{Path: "medication_status", Value: updates.MedicationStatus},
+		{Path: "doctor_comment", Value: updates.DoctorComment},
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user details"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true})
 }
