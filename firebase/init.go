@@ -14,7 +14,7 @@ var StorageClient *storage.Client
 
 func Initialize() {
 	// サービスアカウントキーのファイルパスを指定
-	opt := option.WithCredentialsFile("")
+	opt := option.WithCredentialsFile("../../care-connect-eba8d-firebase-adminsdk-cz4pl-579f118464.json")
 	var err error
 	App, err = firebase.NewApp(context.Background(), nil, opt)
 	if err != nil {
