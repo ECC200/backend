@@ -13,7 +13,6 @@ type History struct {
 type User struct {
 	UserID            string             `json:"user_id" firestore:"user_id"`                         //障がい者番号
 	UserName          string             `json:"user_name" firestore:"user_name"`                     //名前
-	Password          string             `json:"password" firestore:"password"`                       //パスワード
 	Age               int                `json:"age" firestore:"age"`                                 //年齢
 	Address           string             `json:"address" firestore:"address"`                         //住所
 	Photo             string             `json:"photo" firestore:"photo"`                             //本人写真

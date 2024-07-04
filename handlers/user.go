@@ -1,8 +1,8 @@
 package handlers
 
 import (
-	"context"
 	"fmt"
+	"log"
 	"math/rand"
 	"net/http"
 	"strings"
@@ -28,60 +28,47 @@ func generateRandomID() string {
 }
 
 // Userを作成
-func CreateUser(c *gin.Context) {
-	var user models.User
-	// リクエストのJSONをUserモデルにバインド
-	if err := c.ShouldBindJSON(&user); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input"})
-		return
-	}
+func CreateUser(ctx *gin.Context) {
+	// Firestoreクライアントを初期化
+	Client, _ := firebase.Initialize(ctx)
+	defer Client.Close()
 
+	var user models.User
 	// 10桁の英数字を生成してユーザーIDとして設定
 	user.UserID = generateRandomID()
 
-	// 修正必要
-	user.BirthDate = "" // 簡単にするために現在時刻をセット
-
-	ctx := context.Background()
-	// Firestoreクライアントを初期化
-	client, err := firebase.App.Firestore(ctx)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to initialize Firestore"})
+	// リクエストのJSONをUserモデルにバインド
+	if err := ctx.ShouldBindJSON(&user); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input"})
 		return
 	}
-	defer client.Close()
 
 	// Firestoreにユーザーを追加する際にドキュメントIDを指定
-	docRef := client.Collection("users").Doc(user.UserID)
-	_, err = docRef.Set(ctx, user)
+	docRef := Client.Collection("users").Doc(user.UserID)
+	_, err := docRef.Set(ctx, user)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user"})
+		log.Println(err)
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user"})
 		return
 	}
 
 	// ドキュメントIDをUserIDとしてセット
 	user.UserID = docRef.ID
 
-	c.JSON(http.StatusOK, gin.H{"message": "User created successfully", "user_id": user.UserID})
+	ctx.JSON(http.StatusOK, gin.H{"message": "User created successfully", "user_id": docRef.ID})
 }
 
 // User情報取得
-func GetUser(c *gin.Context) {
-	userID := c.Param("id")
-	ctx := context.Background()
-
+func GetUser(ctx *gin.Context) {
+	userID := ctx.Param("id")
 	// Firestoreクライアントを初期化
-	client, err := firebase.App.Firestore(ctx)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to initialize Firestore"})
-		return
-	}
-	defer client.Close()
+	Client, _ := firebase.Initialize(ctx)
+	defer Client.Close()
 
 	// 指定されたuserIDのドキュメントを取得
-	doc, err := client.Collection("users").Doc(userID).Get(ctx)
+	doc, err := Client.Collection("users").Doc(userID).Get(ctx)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user data"})
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user data"})
 		return
 	}
 
@@ -104,50 +91,44 @@ func GetUser(c *gin.Context) {
 				url := fmt.Sprintf("https://storage.googleapis.com/%s/%s", bucketName, objectName)
 				user.Photo = url
 			} else {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid photo path format"})
+				ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid photo path format"})
 				return
 			}
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Photo path must start with gs://"})
+			ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Photo path must start with gs://"})
 			return
 		}
 	}
 
-	c.JSON(http.StatusOK, user)
+	ctx.JSON(http.StatusOK, user)
 }
 
 // 障害者番号をチェックするハンドラー関数
-func CheckDisabilityIdHandler(c *gin.Context) {
+func CheckDisabilityIdHandler(ctx *gin.Context) {
+	// Firestoreクライアントを初期化
+	Client, _ := firebase.Initialize(ctx)
+	defer Client.Close()
+	var user models.User
 	var req struct {
 		UserID string `json:"disabilityId"` // リクエストボディから障害者番号（UserID）を取得
 	}
 
 	// リクエストのJSONをバインド
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
 		return
 	}
-
-	ctx := context.Background()
-	// Firestoreクライアントを初期化
-	client, err := firebase.App.Firestore(ctx)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to initialize Firestore"})
-		return
-	}
-	defer client.Close()
 
 	// 障害者番号（UserID）でユーザーを検索
-	iter := client.Collection("users").Where("user_id", "==", req.UserID).Documents(ctx)
+	iter := Client.Collection("users").Where("user_id", "==", req.UserID).Documents(ctx)
 
-	var user models.User
 	for {
 		doc, err := iter.Next()
 		if err == iterator.Done {
 			break
 		}
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch user data"})
+			ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch user data"})
 			return
 		}
 		doc.DataTo(&user) // ドキュメントデータをUserモデルにマッピング
@@ -156,72 +137,65 @@ func CheckDisabilityIdHandler(c *gin.Context) {
 
 	if user.UserID == "" {
 		// ユーザーが見つからない場合
-		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": "Disability ID not found"})
+		ctx.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": "Disability ID not found"})
 		return
 	}
 
 	// ユーザーが見つかった場合
-	c.JSON(http.StatusOK, gin.H{"success": true})
+	ctx.JSON(http.StatusOK, gin.H{"success": true})
 }
 
 // 履歴を更新
-func UpdateHistory(c *gin.Context) {
-	userID := c.Param("id")
+func UpdateHistory(ctx *gin.Context) {
+	userID := ctx.Param("id")
 	var updatedHistories []models.History
-	if err := c.BindJSON(&updatedHistories); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
+	if err := ctx.BindJSON(&updatedHistories); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
 		return
 	}
 
-	ctx := context.Background()
-	client, err := firebase.App.Firestore(ctx)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to initialize Firestore"})
-		return
-	}
-	defer client.Close()
+	// Firestoreクライアントを初期化
+	Client, _ := firebase.Initialize(ctx)
+	defer Client.Close()
 
-	docRef := client.Collection("users").Doc(userID)
-	_, err = docRef.Update(ctx, []firestore.Update{
+	docRef := Client.Collection("users").Doc(userID)
+	_, err := docRef.Update(ctx, []firestore.Update{
 		{Path: "historys", Value: updatedHistories},
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user history"})
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user history"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"success": true})
+	ctx.JSON(http.StatusOK, gin.H{"success": true})
 }
 
 // User詳細情報更新
-func UpdateUserDetails(c *gin.Context) {
-	userID := c.Param("id")
+func UpdateUserDetails(ctx *gin.Context) {
+	userID := ctx.Param("id")
 	var updates struct {
 		MedicationStatus string `json:"medication_status"`
 		DoctorComment    string `json:"doctor_comment"`
 	}
-	if err := c.BindJSON(&updates); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
+
+	if err := ctx.BindJSON(&updates); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
 		return
 	}
 
-	ctx := context.Background()
-	client, err := firebase.App.Firestore(ctx)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to initialize Firestore"})
-		return
-	}
-	defer client.Close()
+	// Firestoreクライアントを初期化
+	Client, _ := firebase.Initialize(ctx)
+	defer Client.Close()
 
-	docRef := client.Collection("users").Doc(userID)
-	_, err = docRef.Update(ctx, []firestore.Update{
+	docRef := Client.Collection("users").Doc(userID)
+	_, err := docRef.Update(ctx, []firestore.Update{
 		{Path: "medication_status", Value: updates.MedicationStatus},
 		{Path: "doctor_comment", Value: updates.DoctorComment},
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user details"})
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user details"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"success": true})
+	ctx.JSON(http.StatusOK, gin.H{"success": true})
 }

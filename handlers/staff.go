@@ -24,15 +24,11 @@ func Createstaff(ctx *gin.Context) {
 	staff.Password = ""
 
 	// Firestoreクライアントを初期化
-	client, err := firebase.App.Firestore(ctx)
-	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to initialize Firestore"})
-		return
-	}
-	defer client.Close()
+	Client, _ := firebase.Initialize(ctx)
+	defer Client.Close()
 
 	// Firestoreにユーザーを追加
-	docRef, _, err := client.Collection("staffs").Add(ctx, staff)
+	docRef, _, err := Client.Collection("staffs").Add(ctx, staff)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create staff"})
 		return
@@ -55,16 +51,13 @@ func Createstaff(ctx *gin.Context) {
 // staff情報取得
 func Getstaff(ctx *gin.Context) {
 	staffID := ctx.Param("id")
+
 	// Firestoreクライアントを初期化
-	client, err := firebase.App.Firestore(ctx)
-	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to initialize Firestore"})
-		return
-	}
-	defer client.Close()
+	Client, _ := firebase.Initialize(ctx)
+	defer Client.Close()
 
 	// 指定されたstaffIDのドキュメントを取得
-	doc, err := client.Collection("staffs").Doc(staffID).Get(ctx)
+	doc, err := Client.Collection("staffs").Doc(staffID).Get(ctx)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get staff data"})
 		return

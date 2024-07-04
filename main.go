@@ -1,7 +1,6 @@
 package main
 
 import (
-	"backend/firebase"
 	"backend/handlers"
 
 	"github.com/gin-contrib/cors"
@@ -10,7 +9,6 @@ import (
 
 func main() {
 	// Firestore 初期化
-	firebase.Initialize()
 
 	r := gin.Default()
 

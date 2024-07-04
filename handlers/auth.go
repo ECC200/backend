@@ -23,27 +23,22 @@ type LoginResponse struct {
 
 func LoginHandler(ctx *gin.Context) {
 	var req LoginRequest
+	var staff models.Staff
+
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		log.Printf("Invalid request: %v\n", err)
 		ctx.JSON(http.StatusBadRequest, LoginResponse{Success: false, Message: "Invalid request"})
 		return
 	}
-
 	log.Printf("Login attempt: staffId=%s\n", req.StaffID)
 
-	client, err := firebase.App.Firestore(ctx)
-	if err != nil {
-		log.Printf("Firestore client error: %v\n", err)
-		ctx.JSON(http.StatusInternalServerError, LoginResponse{Success: false, Message: "Firestore client error"})
-		return
-	}
-	defer client.Close()
+	// Firestoreクライアントを初期化
+	Client, _ := firebase.Initialize(ctx)
+	defer Client.Close()
 
 	// staffIdに基づいてユーザーを取得
-	iter := client.Collection("staffs").Where("staff_id", "==", req.StaffID).Documents(ctx)
+	iter := Client.Collection("staffs").Where("staff_id", "==", req.StaffID).Documents(ctx)
 	defer iter.Stop()
-
-	var staff models.Staff
 
 	for {
 		doc, err := iter.Next()
@@ -61,7 +56,6 @@ func LoginHandler(ctx *gin.Context) {
 			return
 		}
 		log.Printf("User found: %+v\n", staff)
-		break
 	}
 
 	if staff.StaffID == "" || staff.Password != req.Password {
