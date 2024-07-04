@@ -23,6 +23,9 @@ func main() {
 	r.PUT("/users/:id/details", handlers.UpdateUserDetails)
 	r.PUT("/users/:id/history", handlers.UpdateHistory)
 
+	// Staff関連の処理
+	r.GET("/staffs/:id", handlers.Getstaff)
+
 	// Level2のログイン処理
 	r.POST("/login", handlers.LoginHandler)
 

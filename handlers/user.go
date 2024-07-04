@@ -2,16 +2,18 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
 	"net/http"
+	"strings"
 	"time"
+
+	"backend/firebase"
+	"backend/models"
 
 	"cloud.google.com/go/firestore"
 	"github.com/gin-gonic/gin"
 	"google.golang.org/api/iterator"
-
-	"backend/firebase"
-	"backend/models"
 )
 
 // 10桁の英数字を生成する関数
@@ -67,6 +69,7 @@ func CreateUser(c *gin.Context) {
 func GetUser(c *gin.Context) {
 	userID := c.Param("id")
 	ctx := context.Background()
+
 	// Firestoreクライアントを初期化
 	client, err := firebase.App.Firestore(ctx)
 	if err != nil {
@@ -83,8 +86,32 @@ func GetUser(c *gin.Context) {
 	}
 
 	var user models.User
-	doc.DataTo(&user) // ドキュメントデータをUserモデルにマッピング
+	doc.DataTo(&user)
 	user.UserID = doc.Ref.ID
+
+	// プロフィール画像のURLを取得
+	if user.Photo != "" {
+		// gs:// URLをHTTP/HTTPS URLに変換
+		gsPrefix := "gs://"
+		if strings.HasPrefix(user.Photo, gsPrefix) {
+			photoPath := strings.TrimPrefix(user.Photo, gsPrefix)
+			parts := strings.SplitN(photoPath, "/", 2)
+			if len(parts) == 2 {
+				bucketName := parts[0]
+				objectName := parts[1]
+
+				// URLを取得し、署名付きURLとして返す（必要に応じてアクセス制御）
+				url := fmt.Sprintf("https://storage.googleapis.com/%s/%s", bucketName, objectName)
+				user.Photo = url
+			} else {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid photo path format"})
+				return
+			}
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Photo path must start with gs://"})
+			return
+		}
+	}
 
 	c.JSON(http.StatusOK, user)
 }
