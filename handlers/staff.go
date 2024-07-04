@@ -3,6 +3,7 @@ package handlers
 import (
 	"backend/firebase"
 	"backend/models"
+	"context"
 	"net/http"
 
 	"cloud.google.com/go/firestore"
@@ -53,12 +54,13 @@ func Createstaff(ctx *gin.Context) {
 ///----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 // staff情報取得
-func Getstaff(ctx *gin.Context) {
-	staffID := ctx.Param("id")
+func GetStaff(c *gin.Context) {
+	staffID := c.Param("id")
+	ctx := context.Background()
 	// Firestoreクライアントを初期化
 	client, err := firebase.App.Firestore(ctx)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to initialize Firestore"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to initialize Firestore"})
 		return
 	}
 	defer client.Close()
@@ -66,13 +68,13 @@ func Getstaff(ctx *gin.Context) {
 	// 指定されたstaffIDのドキュメントを取得
 	doc, err := client.Collection("staffs").Doc(staffID).Get(ctx)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get staff data"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get staff data"})
 		return
 	}
 
 	var staff models.Staff
-	doc.DataTo(&staff) // ドキュメントデータをstaffモデルにマッピング
+	doc.DataTo(&staff) // ドキュメントデータをStaffモデルにマッピング
 	staff.StaffID = doc.Ref.ID
 
-	ctx.JSON(http.StatusOK, staff)
+	c.JSON(http.StatusOK, staff)
 }

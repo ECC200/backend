@@ -19,6 +19,8 @@ func main() {
 	r.POST("/users", handlers.CreateUser)
 	r.GET("/users/:id", handlers.GetUser)
 
+	r.GET("/staffs/:id", handlers.GetStaff)
+
 	// 認証ルートを追加
 	r.POST("/login", handlers.LoginHandler)
 	r.POST("/checkDisabilityID", handlers.CheckDisabilityIdHandler)
