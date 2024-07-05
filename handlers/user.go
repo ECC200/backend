@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"math/rand"
@@ -27,6 +28,22 @@ func generateRandomID() string {
 	return string(id)
 }
 
+// 画像をFirebase Storageにアップロード
+func uploadFileToFirebaseStorage(ctx context.Context, fileName string, data []byte) (string, error) {
+	bucketName := "gs://care-connect-eba8d.appspot.com"
+	bucket := firebase.StorageClient.Bucket(bucketName)
+	object := bucket.Object(fileName)
+
+	writer := object.NewWriter(ctx)
+	defer writer.Close()
+
+	if _, err := writer.Write(data); err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("gs://%s/%s", bucketName, fileName), nil
+}
+
 // Userを作成
 func CreateUser(c *gin.Context) {
 	var user models.User
@@ -38,6 +55,30 @@ func CreateUser(c *gin.Context) {
 
 	// 10桁の英数字を生成してユーザーIDとして設定
 	user.UserID = generateRandomID()
+
+	// ここで画像のアップロード処理を追加
+	fileHeader, err := c.FormFile("photo")
+	if err == nil {
+		file, err := fileHeader.Open()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to open photo file"})
+			return
+		}
+		defer file.Close()
+
+		buf := bytes.NewBuffer(nil)
+		if _, err := buf.ReadFrom(file); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read photo file"})
+			return
+		}
+
+		photoPath, err := uploadFileToFirebaseStorage(c.Request.Context(), fileHeader.Filename, buf.Bytes())
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to upload photo to Firebase Storage"})
+			return
+		}
+		user.Photo = photoPath
+	}
 
 	// 修正必要
 	user.BirthDate = "" // 簡単にするために現在時刻をセット
@@ -91,7 +132,6 @@ func GetUser(c *gin.Context) {
 
 	// プロフィール画像のURLを取得
 	if user.Photo != "" {
-		// gs:// URLをHTTP/HTTPS URLに変換
 		gsPrefix := "gs://"
 		if strings.HasPrefix(user.Photo, gsPrefix) {
 			photoPath := strings.TrimPrefix(user.Photo, gsPrefix)
@@ -100,9 +140,13 @@ func GetUser(c *gin.Context) {
 				bucketName := parts[0]
 				objectName := parts[1]
 
-				// URLを取得し、署名付きURLとして返す（必要に応じてアクセス制御）
-				url := fmt.Sprintf("https://storage.googleapis.com/%s/%s", bucketName, objectName)
-				user.Photo = url
+				// 署名付きURLを生成
+				signedURL, err := firebase.GenerateSignedURL(bucketName, objectName)
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate signed URL"})
+					return
+				}
+				user.Photo = signedURL
 			} else {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid photo path format"})
 				return
