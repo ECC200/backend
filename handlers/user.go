@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"backend/firebase"
+	"backend/models"
 	"bytes"
 	"context"
 	"fmt"
@@ -8,9 +10,6 @@ import (
 	"net/http"
 	"strings"
 	"time"
-
-	"backend/firebase"
-	"backend/models"
 
 	"cloud.google.com/go/firestore"
 	"github.com/gin-gonic/gin"
@@ -30,7 +29,7 @@ func generateRandomID() string {
 
 // 画像をFirebase Storageにアップロード
 func uploadFileToFirebaseStorage(ctx context.Context, fileName string, data []byte) (string, error) {
-	bucketName := "gs://care-connect-eba8d.appspot.com"
+	bucketName := "care-connect-eba8d.appspot.com"
 	bucket := firebase.StorageClient.Bucket(bucketName)
 	object := bucket.Object(fileName)
 
@@ -47,16 +46,40 @@ func uploadFileToFirebaseStorage(ctx context.Context, fileName string, data []by
 // Userを作成
 func CreateUser(c *gin.Context) {
 	var user models.User
-	// リクエストのJSONをUserモデルにバインド
-	if err := c.ShouldBindJSON(&user); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input"})
+
+	// リクエストのMultipart formをパース
+	if err := c.Request.ParseMultipartForm(10 << 20); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to parse form"})
 		return
 	}
 
-	// 10桁の英数字を生成してユーザーIDとして設定
+	// Userデータの取得
 	user.UserID = generateRandomID()
+	user.UserName = c.PostForm("user_name")
+	user.BirthDate = c.PostForm("birth_date")
+	user.Age = c.PostForm("age")
+	user.Address = c.PostForm("address")
+	user.Contact = c.PostForm("contact")
+	user.HospitalDestination = c.PostForm("hospital_destination")
+	user.PrimaryCareDoctor = c.PostForm("primary_care_doctor")
+	user.Specialty = c.PostForm("specialty")
+	user.ChronicDisease = c.PostForm("chronic_disease")
+	user.DisabilityGrade = c.PostForm("disability_grade")
 
-	// ここで画像のアップロード処理を追加
+	// 緊急連絡先の取得
+	emergencyContacts := []models.EmergencyContact{
+		{
+			Name:  c.PostForm("emergency_contacts[0].name"),
+			Phone: c.PostForm("emergency_contacts[0].phone"),
+		},
+		{
+			Name:  c.PostForm("emergency_contacts[1].name"),
+			Phone: c.PostForm("emergency_contacts[1].phone"),
+		},
+	}
+	user.EmergencyContacts = emergencyContacts
+
+	// 画像のアップロード
 	fileHeader, err := c.FormFile("photo")
 	if err == nil {
 		file, err := fileHeader.Open()
@@ -80,11 +103,7 @@ func CreateUser(c *gin.Context) {
 		user.Photo = photoPath
 	}
 
-	// 修正必要
-	user.BirthDate = "" // 簡単にするために現在時刻をセット
-
 	ctx := context.Background()
-	// Firestoreクライアントを初期化
 	client, err := firebase.App.Firestore(ctx)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to initialize Firestore"})
@@ -92,7 +111,6 @@ func CreateUser(c *gin.Context) {
 	}
 	defer client.Close()
 
-	// Firestoreにユーザーを追加する際にドキュメントIDを指定
 	docRef := client.Collection("users").Doc(user.UserID)
 	_, err = docRef.Set(ctx, user)
 	if err != nil {
@@ -100,13 +118,8 @@ func CreateUser(c *gin.Context) {
 		return
 	}
 
-	// ドキュメントIDをUserIDとしてセット
-	user.UserID = docRef.ID
-
 	c.JSON(http.StatusOK, gin.H{"message": "User created successfully", "user_id": user.UserID})
 }
-
-// User情報取得
 func GetUser(c *gin.Context) {
 	userID := c.Param("id")
 	ctx := context.Background()
