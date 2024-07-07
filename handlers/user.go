@@ -3,7 +3,6 @@ package handlers
 import (
 	"backend/firebase"
 	"backend/models"
-
 	"bytes"
 	"context"
 	"fmt"
@@ -11,9 +10,6 @@ import (
 	"net/http"
 	"strings"
 	"time"
-
-	"backend/firebase"
-	"backend/models"
 
 	"cloud.google.com/go/firestore"
 	"github.com/gin-gonic/gin"
@@ -30,7 +26,6 @@ func generateRandomID() string {
 	}
 	return string(id)
 }
-
 
 // 画像をFirebase Storageにアップロード
 func uploadFileToFirebaseStorage(ctx context.Context, fileName string, data []byte) (string, error) {
